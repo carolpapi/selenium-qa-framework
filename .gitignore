@@ -1,0 +1,12 @@
+target/
+test-output/
+allure-results/
+allure-report/
+*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Personal interview prep notes - kept locally, never published
+docs/INTERVIEW_GUIDE.md

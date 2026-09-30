@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!-- UI only. Each thread gets its own browser (ThreadLocal driver). -->
+<suite name="UI" parallel="methods" thread-count="4" data-provider-thread-count="2">
+    <listeners>
+        <listener class-name="io.github.carolpapi.tests.listeners.RetryTransformer"/>
+        <listener class-name="io.github.carolpapi.tests.listeners.ExecutionLogListener"/>
+    </listeners>
+    <test name="UI">
+        <packages><package name="io.github.carolpapi.tests.ui"/></packages>
+    </test>
+</suite>

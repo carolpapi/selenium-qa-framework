@@ -1,0 +1,105 @@
+name: Automated Tests
+
+# When the tests run - each trigger has a purpose:
+on:
+  pull_request:            # quality gate: smoke must pass before merge
+  push:
+    branches: [main]       # smoke on every change to main
+  schedule:
+    - cron: "0 6 * * *"    # full regression every night (03:00 BRT)
+  workflow_dispatch:       # manual run, choosing suite and browser
+    inputs:
+      suite:
+        description: "TestNG suite (smoke | api | ui | regression)"
+        default: "regression"
+      browser:
+        description: "chrome | firefox | edge"
+        default: "chrome"
+
+permissions:
+  contents: read
+  checks: write            # needed to publish the test report on the PR
+
+concurrency:               # a new push cancels the outdated run of the same branch
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Secrets are injected as env vars and read by Config (SAUCE_PASSWORD -> sauce.password).
+  # Falls back to the public demo value when the secret is not configured.
+  SAUCE_PASSWORD: ${{ secrets.SAUCE_PASSWORD || 'secret_sauce' }}
+
+jobs:
+  # 1) Fast feedback first: API tests take seconds and need no browser.
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Run API tests
+        run: mvn -B test -Dsuite=api -Dretry.count=1
+      - name: Publish API test report
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: "target/surefire-reports/TEST-*.xml"
+          check_name: "API test report"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-results
+          path: |
+            target/allure-results
+            target/surefire-reports
+
+  # 2) UI tests: only start if the API layer is healthy (no point testing the
+  #    screen when the backend is broken). Cross-browser via matrix.
+  ui-tests:
+    needs: api-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false     # one browser failing must not hide the other browser's results
+      matrix:
+        browser: ${{ github.event_name == 'schedule' && fromJSON('["chrome","firefox"]') || fromJSON(format('["{0}"]', github.event.inputs.browser || 'chrome')) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Choose suite
+        id: suite
+        run: |
+          # API tests already ran in the previous job, so "regression"/"api" map to "ui" here.
+          case "${{ github.event_name }}:${{ github.event.inputs.suite }}" in
+            schedule:*|*:regression|*:api|*:ui) echo "name=ui" >> "$GITHUB_OUTPUT" ;;
+            *) echo "name=smoke" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - name: Run UI tests (${{ matrix.browser }}, headless)
+        # Chrome and Firefox are preinstalled on GitHub runners; Selenium Manager fetches the drivers.
+        shell: bash   # bash + pipefail: the step still fails when tests fail, even with tee
+        run: mvn -B test -Dsuite=${{ steps.suite.outputs.name }} -Dbrowser=${{ matrix.browser }} -Dheadless=true -Dretry.count=1 | tee test-output.log
+      - name: Flaky tests in this run (passed only after retry -> fix backlog)
+        if: always()
+        run: grep "\[FLAKY\]" test-output.log || echo "No retried tests"
+      - name: Publish UI test report
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: "target/surefire-reports/TEST-*.xml"
+          check_name: "UI test report (${{ matrix.browser }})"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-results-${{ matrix.browser }}
+          path: |
+            target/allure-results
+            target/surefire-reports
+            target/screenshots

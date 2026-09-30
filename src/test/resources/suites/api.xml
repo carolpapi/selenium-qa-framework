@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!-- API only: fast feedback, no browser. Runs first in the pipeline. -->
+<suite name="API" parallel="methods" thread-count="8">
+    <listeners>
+        <listener class-name="io.github.carolpapi.tests.listeners.RetryTransformer"/>
+        <listener class-name="io.github.carolpapi.tests.listeners.ExecutionLogListener"/>
+    </listeners>
+    <test name="API">
+        <packages><package name="io.github.carolpapi.tests.api"/></packages>
+    </test>
+</suite>

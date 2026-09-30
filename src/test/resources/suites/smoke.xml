@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!-- Smoke: the few critical journeys that must work on every commit / pull request (~2-3 min). -->
+<suite name="Smoke" parallel="methods" thread-count="4">
+    <listeners>
+        <listener class-name="io.github.carolpapi.tests.listeners.RetryTransformer"/>
+        <listener class-name="io.github.carolpapi.tests.listeners.ExecutionLogListener"/>
+    </listeners>
+    <test name="Smoke - API + UI">
+        <groups><run><include name="smoke"/></run></groups>
+        <packages>
+            <package name="io.github.carolpapi.tests.api"/>
+            <package name="io.github.carolpapi.tests.ui"/>
+        </packages>
+    </test>
+</suite>
